@@ -3,12 +3,17 @@ import { JwtService } from '@nestjs/jwt';
 import { Customer } from './customer.entity'
 import { CreateCustDto } from './createcustdto';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import { ConnectionProvider } from '../database/database.module';
+import { Repository } from 'typeorm';
+import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class CustomerService {
 
   constructor(private readonly jwtService: JwtService,
-    @Inject('CONNECTION_PROVIDER') public pool) {
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
+    public connProvider:ConnectionProvider) {
   }
 
   async createCustomer(createCustDto: CreateCustDto): Promise<any | Error> {
@@ -30,20 +35,18 @@ export class CustomerService {
   }
 
   findOne(email: string) {
-      this.pool.getConnection(function (err, connection) {
-        if (err) throw err; // not connected!
 
-        // Use the connection
-        connection.query('SELECT * FROM customer', function (error, results, fields) {
-          // When done with the connection, release it.
-          connection.release();
+    this.customerRepo.query("CALL customer_get_login_info(?)",[email]).then( (results:Customer[]) => {
+      console.log(results);
+    }).catch(( err) => {
+      console.log(err);
+    });
 
-          // Handle error after the release.
-          if (error) throw error;
-
-          // Don't use the connection here, it has been returned to the pool.
-        });
-      });
+    this.connProvider.connection<Customer[]>("SELECT * FROM customer").then((results:Customer[]) => {
+      console.log(results);
+    }).catch((err) => {
+      console.log(err);
+    });
   }
 
   async validateUser(payload: JwtPayload): Promise<any> {
